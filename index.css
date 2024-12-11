@@ -1,0 +1,44 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: #121212;
+    color: #fff;
+    margin: 0;
+    font-family: Arial, sans-serif;
+  }
+  
+  .container {
+    text-align: center;
+  }
+  
+  canvas {
+    display: block;
+    margin: 20px auto;
+    background: #1e1e1e;
+    border-radius: 50%;
+    width: 300px;
+    height: 300px;
+  }
+  
+  .subtitle {
+    margin: 20px;
+    font-size: 18px;
+    font-style: italic;
+  }
+  
+  button {
+    padding: 10px 20px;
+    background: #6200ea;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 5px;
+  }
+  
+  button:hover {
+    background: #3700b3;
+  }
+  

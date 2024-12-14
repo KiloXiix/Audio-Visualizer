@@ -67,6 +67,7 @@ function drawVisualizer() {
   }
 
   ctx.closePath();
+  ctx.lineWidth = 4;
   ctx.strokeStyle = '#03dac6';  // Set line color
   ctx.stroke();
 

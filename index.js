@@ -51,38 +51,46 @@ function drawVisualizer() {
 
   // Loop through each frequency bin and draw it evenly around the full circle
   for (let i = 0; i < numBars; i++) {
-    // Spread the frequency bins evenly around the full circle (360 degrees)
-    const angle = (i / numBars) * 2 * Math.PI; // Full circle for frequency bins
-
-    // Calculate the height of the bar based on frequency data
-    const barHeight = dataArray[i] / 2; // Height of each bar, scaled
-    const x = Math.cos(angle) * (radius + barHeight); // X position based on angle and height
-    const y = Math.sin(angle) * (radius + barHeight); // Y position based on angle and height
-
-    // Draw a line to each point in the circle
+    const angle = (i / numBars) * 2 * Math.PI;
+    const barHeight = dataArray[i] / 2;
+    const x = Math.cos(angle) * (radius + barHeight);
+    const y = Math.sin(angle) * (radius + barHeight);
     ctx.lineTo(x, y);
   }
 
   ctx.closePath();
   ctx.lineWidth = 4;
-  ctx.strokeStyle = '#03dac6'; // Set line color
+  ctx.strokeStyle = '#03dac6';
   ctx.stroke();
 
-  // Restore the original canvas state
   ctx.restore();
-
-  // Increment the rotation angle to animate the circular movement
-  rotationAngle += 0.01; // Adjust the speed of rotation (lower = slower)
+  rotationAngle += 0.01;
 }
 
 // Event Listeners
 audioUpload.addEventListener('change', (event) => {
   audioFile = event.target.files[0];
   if (audioFile) {
+    if (audioElement) {
+      // Stop currently playing audio if user uploads a new file
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      isPlaying = false;
+      playButton.textContent = 'Play';
+    }
     audioElement = new Audio(URL.createObjectURL(audioFile));
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     source = audioContext.createMediaElementSource(audioElement);
     setupVisualizer();
+
+    // Reset button when audio ends
+    audioElement.addEventListener('ended', () => {
+      setTimeout(() => {
+        isPlaying = false;
+        playButton.textContent = 'Play';
+      }, 1000); // Wait for 2 seconds (2000 milliseconds)
+    });
+    
   }
 });
 

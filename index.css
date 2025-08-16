@@ -1,44 +1,70 @@
 body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background: #121212;
-    color: #fff;
-    margin: 0;
-    font-family: Arial, sans-serif;
-  }
-  
-  .container {
-    text-align: center;
-  }
-  
-  canvas {
-    display: block;
-    margin: 20px auto;
-    background: #1e1e1e;
-    border-radius: 50%;
-    width: 300px;
-    height: 300px;
-  }
-  
-  .subtitle {
-    margin: 20px;
-    font-size: 18px;
-    font-style: italic;
-  }
-  
-  button {
-    padding: 10px 20px;
-    background: #6200ea;
-    border: none;
-    color: white;
-    cursor: pointer;
-    font-size: 16px;
-    border-radius: 5px;
-  }
-  
-  button:hover {
-    background: #3700b3;
-  }
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #121212 60%, #232323 100%);
+  color: #fff;
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.container {
+  background: rgba(30, 30, 30, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px 0 rgba(3, 218, 198, 0.12);
+  padding: 40px 32px 32px 32px;
+  text-align: center;
+  min-width: 350px;
+}
+
+input[type="file"] {
+  margin-bottom: 24px;
+  background: #232323;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(3, 218, 198, 0.08);
+}
+
+canvas {
+  display: block;
+  margin: 24px auto 16px auto;
+  background: #181818;
+  border-radius: 50%;
+  width: 320px;
+  height: 320px;
+  box-shadow: 0 4px 24px 0 rgba(98, 0, 234, 0.18);
+}
+
+.timeline {
+  width: 80%;
+  margin: 18px auto 24px auto;
+  display: block;
+  accent-color: #03dac6;
+  height: 6px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #03dac6 0%, #6200ea 100%);
+  box-shadow: 0 2px 8px rgba(3, 218, 198, 0.08);
+}
+
+button {
+  padding: 12px 32px;
+  background: linear-gradient(90deg, #6200ea 60%, #03dac6 100%);
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.12);
+  transition: background 0.2s, transform 0.2s;
+}
+
+button:hover {
+  background: linear-gradient(90deg, #3700b3 60%, #03dac6 100%);
+  transform: scale(1.04);
+}
   

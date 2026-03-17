@@ -1,18 +1,502 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Audio Visualizer</title>
-  <link rel="stylesheet" href="index.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+```
+:root {
+  --teal: #03dac6;
+  --violet: #6200ea;
+  --bg: #0e0e0e;
+  --surface: #1a1a1a;
+  --surface2: #242424;
+  --text: #e8e8e8;
+  --muted: #666;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Rajdhani', sans-serif;
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* Subtle grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(3,218,198,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(3,218,198,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+.container {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid rgba(3,218,198,0.12);
+  border-radius: 4px;
+  padding: 36px 32px 28px;
+  width: 420px;
+  box-shadow: 0 0 60px rgba(98,0,234,0.15), 0 0 0 1px rgba(3,218,198,0.06);
+}
+
+/* Corner accents */
+.container::before, .container::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  border-color: var(--teal);
+  border-style: solid;
+}
+.container::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.container::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+h1 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: var(--teal);
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  opacity: 0.7;
+}
+
+/* ── Input section ── */
+.input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.url-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid rgba(3,218,198,0.18);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.url-input::placeholder { color: var(--muted); }
+.url-input:focus { border-color: var(--teal); }
+
+.load-btn {
+  background: rgba(3,218,198,0.1);
+  border: 1px solid rgba(3,218,198,0.3);
+  color: var(--teal);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.load-btn:hover { background: rgba(3,218,198,0.2); border-color: var(--teal); }
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+}
+
+.file-label {
+  display: block;
+  background: var(--surface2);
+  border: 1px dashed rgba(3,218,198,0.2);
+  border-radius: 3px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  text-align: center;
+}
+.file-label:hover { border-color: rgba(3,218,198,0.5); color: var(--teal); }
+#audio-upload { display: none; }
+
+/* ── Status bar ── */
+#status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  min-height: 14px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#status.ok  { color: var(--teal); }
+#status.err { color: #cf6679; }
+
+/* ── Canvas ── */
+canvas {
+  display: block;
+  margin: 16px auto 14px;
+  background: #111;
+  border-radius: 50%;
+  width: 300px;
+  height: 300px;
+  border: 1px solid rgba(3,218,198,0.08);
+  box-shadow: 0 0 40px rgba(98,0,234,0.2);
+}
+
+/* ── Timeline ── */
+.timeline {
+  width: 100%;
+  margin: 4px 0 20px;
+  display: block;
+  accent-color: var(--teal);
+  height: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ── Play button ── */
+#play-button {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(90deg, var(--violet) 0%, #03dac6 100%);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  transition: opacity 0.2s, transform 0.15s;
+}
+#play-button:hover { opacity: 0.88; transform: translateY(-1px); }
+#play-button:active { transform: translateY(0); }
+```
+
+  </style>
 </head>
 <body>
-  <div class="container">
-    <input type="file" id="audio-upload" accept=".mp3, .wav">
-  <canvas id="audio-visualizer"></canvas>
-  <input type="range" id="audio-timeline" min="0" value="0" step="0.01" class="timeline">
-  <button id="play-button">Play</button>
+<div class="container">
+  <h1>// AUDIO VISUALIZER</h1>
+
+  <div class="input-section">
+    <!-- URL row -->
+    <div class="input-row">
+      <input
+        class="url-input"
+        id="url-input"
+        type="text"
+        placeholder="Google Drive share link or direct audio URL…"
+      >
+      <button class="load-btn" id="load-url-btn">LOAD</button>
+    </div>
+
+```
+<div class="divider">or</div>
+
+<!-- File upload -->
+<label class="file-label" for="audio-upload">
+  ⊕ &nbsp;Upload local file (.mp3 / .wav)
+</label>
+<input type="file" id="audio-upload" accept=".mp3,.wav">
+```
+
   </div>
-  <script src="index.js"></script>
+
+  <div id="status">READY — NO SOURCE LOADED</div>
+
+<canvas id="audio-visualizer"></canvas>
+<input type="range" id="audio-timeline" min="0" value="0" step="0.01" class="timeline">
+<button id="play-button">▶  PLAY</button>
+
+</div>
+
+<script>
+const audioUpload  = document.getElementById('audio-upload');
+const urlInput     = document.getElementById('url-input');
+const loadUrlBtn   = document.getElementById('load-url-btn');
+const playButton   = document.getElementById('play-button');
+const canvas       = document.getElementById('audio-visualizer');
+const timeline     = document.getElementById('audio-timeline');
+const statusEl     = document.getElementById('status');
+const ctx          = canvas.getContext('2d');
+
+let audioContext, source, analyser, bufferLength, dataArray;
+let isPlaying = false;
+let audioElement;
+let animationFrameId;
+let currentSourceLabel = '';
+
+// ── Status helper ──────────────────────────────────────────────────────────
+function setStatus(msg, type = '') {
+  statusEl.textContent = msg;
+  statusEl.className = type;
+}
+
+// ── Google Drive URL converter ─────────────────────────────────────────────
+//
+//  Handles the two most common share URL formats:
+//    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+//    https://drive.google.com/open?id=FILE_ID
+//
+//  Converts them to the direct-download endpoint:
+//    https://drive.google.com/uc?export=download&id=FILE_ID
+//
+function convertGDriveURL(url) {
+  // Format 1: /file/d/<id>/
+  const fileMatch = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+  if (fileMatch) {
+    return `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`;
+  }
+  // Format 2: ?id=<id>
+  const idMatch = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/);
+  if (idMatch) {
+    return `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+  }
+  // Not a Drive link — return as-is
+  return url;
+}
+
+// ── Load audio from a URL string ───────────────────────────────────────────
+function loadFromURL(rawURL) {
+  const trimmed = rawURL.trim();
+  if (!trimmed) { setStatus('ENTER A URL FIRST', 'err'); return; }
+
+  const resolvedURL = convertGDriveURL(trimmed);
+
+  setStatus('LOADING…');
+  initAudioElement(resolvedURL, trimmed);
+}
+
+// ── Core audio element setup ───────────────────────────────────────────────
+function initAudioElement(src, label) {
+  teardown();
+
+  audioElement = new Audio();
+  audioElement.crossOrigin = 'anonymous';   // required for Web Audio API + CORS
+  audioElement.src = src;
+  currentSourceLabel = label.length > 48 ? label.slice(0, 45) + '…' : label;
+
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  source = audioContext.createMediaElementSource(audioElement);
+  setupVisualizer();
+
+  audioElement.addEventListener('loadedmetadata', () => {
+    timeline.max = audioElement.duration;
+    timeline.value = 0;
+    setStatus(`LOADED: ${currentSourceLabel}`, 'ok');
+  });
+
+  audioElement.addEventListener('timeupdate', updateTimeline);
+
+  audioElement.addEventListener('error', () => {
+    const code = audioElement.error ? audioElement.error.code : '?';
+    const hints = {
+      1: 'Aborted',
+      2: 'Network error — check the URL or CORS policy',
+      3: 'Decode error — file may not be a supported audio format',
+      4: 'Source not found or access denied',
+    };
+    setStatus(`ERROR ${code}: ${hints[code] || 'Unknown error'}`, 'err');
+    teardown();
+  });
+
+  audioElement.addEventListener('ended', () => {
+    isPlaying = false;
+    playButton.textContent = '▶ \u00A0PLAY';
+    cancelAnimationFrame(animationFrameId);
+  });
+}
+
+// ── Teardown previous session ──────────────────────────────────────────────
+function teardown() {
+  if (audioElement) {
+    audioElement.pause();
+    audioElement.src = '';
+  }
+  if (audioContext) {
+    audioContext.close();
+  }
+  cancelAnimationFrame(animationFrameId);
+  isPlaying = false;
+  playButton.textContent = '▶ \u00A0PLAY';
+  timeline.value = 0;
+  timeline.max = 1;
+  audioElement = null;
+  audioContext = null;
+  source = null;
+  analyser = null;
+}
+
+// ── Visualizer setup ───────────────────────────────────────────────────────
+function setupVisualizer() {
+  canvas.width = 300;
+  canvas.height = 300;
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  bufferLength = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufferLength);
+  source.connect(analyser);
+  analyser.connect(audioContext.destination);
+}
+
+// ── Draw ───────────────────────────────────────────────────────────────────
+let rotationAngle = 0;
+function drawVisualizer() {
+  if (!isPlaying) return;
+  animationFrameId = requestAnimationFrame(drawVisualizer);
+  analyser.getByteFrequencyData(dataArray);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotationAngle);
+
+  // Base disc
+  ctx.beginPath();
+  ctx.arc(0, 0, 100, 0, 2 * Math.PI);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.shadowColor = '#03dac6';
+  ctx.shadowBlur = 18;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Grooves
+  for (let r = 68; r < 100; r += 6) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(98,0,234,0.14)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Center label
+  ctx.beginPath();
+  ctx.arc(0, 0, 28, 0, 2 * Math.PI);
+  ctx.fillStyle = '#03dac6';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0, 0, 9, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0e0e0e';
+  ctx.fill();
+
+  // Waveform (kept upright)
+  ctx.save();
+  ctx.rotate(-rotationAngle);
+  const radius = 100;
+  const maxBar = 52;
+  const numBars = Math.floor(bufferLength / 2.5);
+
+  ctx.beginPath();
+  for (let i = 0; i < numBars; i++) {
+    const angle = (i / numBars) * 2 * Math.PI;
+    let h = dataArray[i] / 2.2;
+    if (h > maxBar) h = maxBar;
+    ctx.lineTo(Math.cos(angle) * (radius + h), Math.sin(angle) * (radius + h));
+  }
+  ctx.closePath();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#03dac6';
+  ctx.shadowColor = '#03dac6';
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+  rotationAngle += 0.012;
+}
+
+// ── Timeline ───────────────────────────────────────────────────────────────
+function updateTimeline() {
+  if (audioElement && audioElement.duration) {
+    timeline.max = audioElement.duration;
+    timeline.value = audioElement.currentTime;
+  }
+}
+
+// ── Event listeners ────────────────────────────────────────────────────────
+
+// URL load button
+loadUrlBtn.addEventListener('click', () => loadFromURL(urlInput.value));
+urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromURL(urlInput.value); });
+
+// File upload
+audioUpload.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  urlInput.value = '';
+  initAudioElement(URL.createObjectURL(file), file.name);
+  setStatus(`LOADED: ${file.name}`, 'ok');
+});
+
+// Play / Pause
+playButton.addEventListener('click', () => {
+  if (!audioElement) {
+    setStatus('LOAD A SOURCE FIRST', 'err');
+    return;
+  }
+  if (isPlaying) {
+    audioElement.pause();
+    isPlaying = false;
+    playButton.textContent = '▶ \u00A0PLAY';
+    cancelAnimationFrame(animationFrameId);
+  } else {
+    // Resume AudioContext if suspended (browser autoplay policy)
+    if (audioContext.state === 'suspended') audioContext.resume();
+    audioElement.play();
+    isPlaying = true;
+    playButton.textContent = '⏸ \u00A0PAUSE';
+    drawVisualizer();
+  }
+});
+
+// Seek
+timeline.addEventListener('input', (e) => {
+  if (audioElement && audioElement.duration) {
+    audioElement.currentTime = parseFloat(e.target.value);
+  }
+});
+</script>
+
 </body>
 </html>

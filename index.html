@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
   <title>Audio Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
@@ -12,6 +13,7 @@
 
 ```
 :root {
+  color-scheme: dark;
   --teal: #03dac6;
   --violet: #6200ea;
   --bg: #0e0e0e;
@@ -21,15 +23,19 @@
   --muted: #666;
 }
 
+html { background: #0e0e0e; }
+
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   display: flex;
   justify-content: center;
   align-items: center;
   font-family: 'Rajdhani', sans-serif;
   color: var(--text);
-  overflow: hidden;
+  overflow-x: hidden;
+  padding: 16px;
 }
 
 /* Subtle grid background */
@@ -49,8 +55,9 @@ body::before {
   background: var(--surface);
   border: 1px solid rgba(3,218,198,0.12);
   border-radius: 4px;
-  padding: 36px 32px 28px;
-  width: 420px;
+  padding: 28px 20px 24px;
+  width: 100%;
+  max-width: 420px;
   box-shadow: 0 0 60px rgba(98,0,234,0.15), 0 0 0 1px rgba(3,218,198,0.06);
 }
 
@@ -172,8 +179,8 @@ canvas {
   margin: 16px auto 14px;
   background: #111;
   border-radius: 50%;
-  width: 300px;
-  height: 300px;
+  width: min(300px, calc(100vw - 80px));
+  height: min(300px, calc(100vw - 80px));
   border: 1px solid rgba(3,218,198,0.08);
   box-shadow: 0 0 40px rgba(98,0,234,0.2);
 }
@@ -280,15 +287,18 @@ function setStatus(msg, type = '') {
 //    https://drive.google.com/uc?export=download&id=FILE_ID
 //
 function convertGDriveURL(url) {
+  const PROXY = 'https://corsproxy.io/?url=';
   // Format 1: /file/d/<id>/
   const fileMatch = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
   if (fileMatch) {
-    return `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`;
+    const direct = `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`;
+    return PROXY + encodeURIComponent(direct);
   }
   // Format 2: ?id=<id>
   const idMatch = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/);
   if (idMatch) {
-    return `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+    const direct = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+    return PROXY + encodeURIComponent(direct);
   }
   // Not a Drive link — return as-is
   return url;
@@ -367,8 +377,9 @@ function teardown() {
 
 // ── Visualizer setup ───────────────────────────────────────────────────────
 function setupVisualizer() {
-  canvas.width = 300;
-  canvas.height = 300;
+  const size = canvas.getBoundingClientRect();
+  canvas.width = size.width || 300;
+  canvas.height = size.height || 300;
   analyser = audioContext.createAnalyser();
   analyser.fftSize = 256;
   bufferLength = analyser.frequencyBinCount;

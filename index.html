@@ -78,85 +78,27 @@ h1 {
   letter-spacing: 0.2em;
   color: var(--teal);
   text-transform: uppercase;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   opacity: 0.7;
 }
 
-/* ── Input section ── */
-.input-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.input-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-
-.url-input {
-  flex: 1;
-  background: var(--surface2);
-  border: 1px solid rgba(3,218,198,0.18);
-  border-radius: 3px;
-  color: var(--text);
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  padding: 9px 12px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.url-input::placeholder { color: var(--muted); }
-.url-input:focus { border-color: var(--teal); }
-
-.load-btn {
-  background: rgba(3,218,198,0.1);
-  border: 1px solid rgba(3,218,198,0.3);
-  color: var(--teal);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  padding: 0 14px;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-  white-space: nowrap;
-}
-.load-btn:hover { background: rgba(3,218,198,0.2); border-color: var(--teal); }
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: var(--muted);
-}
-.divider::before, .divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: rgba(255,255,255,0.06);
-}
-
+/* ── File upload ── */
 .file-label {
   display: block;
   background: var(--surface2);
-  border: 1px dashed rgba(3,218,198,0.2);
+  border: 1px dashed rgba(3,218,198,0.25);
   border-radius: 3px;
-  padding: 9px 14px;
-  font-size: 13px;
+  padding: 14px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.05em;
   color: var(--muted);
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
   text-align: center;
+  margin-bottom: 16px;
 }
-.file-label:hover { border-color: rgba(3,218,198,0.5); color: var(--teal); }
+.file-label:hover { border-color: var(--teal); color: var(--teal); }
 #audio-upload { display: none; }
 
 /* ── Status bar ── */
@@ -179,8 +121,8 @@ canvas {
   margin: 16px auto 14px;
   background: #111;
   border-radius: 50%;
-  width: min(300px, calc(100vw - 80px));
-  height: min(300px, calc(100vw - 80px));
+  width: min(300px, calc(100vw - 72px));
+  height: min(300px, calc(100vw - 72px));
   border: 1px solid rgba(3,218,198,0.08);
   box-shadow: 0 0 40px rgba(98,0,234,0.2);
 }
@@ -223,31 +165,12 @@ canvas {
 <div class="container">
   <h1>// AUDIO VISUALIZER</h1>
 
-  <div class="input-section">
-    <!-- URL row -->
-    <div class="input-row">
-      <input
-        class="url-input"
-        id="url-input"
-        type="text"
-        placeholder="Google Drive share link or direct audio URL…"
-      >
-      <button class="load-btn" id="load-url-btn">LOAD</button>
-    </div>
+  <label class="file-label" for="audio-upload">
+    ⊕ &nbsp;Upload audio file
+  </label>
+  <input type="file" id="audio-upload" accept="audio/*">
 
-```
-<div class="divider">or</div>
-
-<!-- File upload -->
-<label class="file-label" for="audio-upload">
-  ⊕ &nbsp;Upload local file (.mp3 / .wav)
-</label>
-<input type="file" id="audio-upload" accept=".mp3,.wav">
-```
-
-  </div>
-
-  <div id="status">READY — NO SOURCE LOADED</div>
+  <div id="status">READY — NO FILE LOADED</div>
 
 <canvas id="audio-visualizer"></canvas>
 <input type="range" id="audio-timeline" min="0" value="0" step="0.01" class="timeline">
@@ -256,20 +179,17 @@ canvas {
 </div>
 
 <script>
-const audioUpload  = document.getElementById('audio-upload');
-const urlInput     = document.getElementById('url-input');
-const loadUrlBtn   = document.getElementById('load-url-btn');
-const playButton   = document.getElementById('play-button');
-const canvas       = document.getElementById('audio-visualizer');
-const timeline     = document.getElementById('audio-timeline');
-const statusEl     = document.getElementById('status');
-const ctx          = canvas.getContext('2d');
+const audioUpload = document.getElementById('audio-upload');
+const playButton  = document.getElementById('play-button');
+const canvas      = document.getElementById('audio-visualizer');
+const timeline    = document.getElementById('audio-timeline');
+const statusEl    = document.getElementById('status');
+const ctx         = canvas.getContext('2d');
 
 let audioContext, source, analyser, bufferLength, dataArray;
 let isPlaying = false;
 let audioElement;
 let animationFrameId;
-let currentSourceLabel = '';
 
 // ── Status helper ──────────────────────────────────────────────────────────
 function setStatus(msg, type = '') {
@@ -277,93 +197,10 @@ function setStatus(msg, type = '') {
   statusEl.className = type;
 }
 
-// ── Google Drive URL converter ─────────────────────────────────────────────
-//
-//  Handles the two most common share URL formats:
-//    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-//    https://drive.google.com/open?id=FILE_ID
-//
-//  Converts them to the direct-download endpoint:
-//    https://drive.google.com/uc?export=download&id=FILE_ID
-//
-function convertGDriveURL(url) {
-  const PROXY = 'https://corsproxy.io/?url=';
-  // Format 1: /file/d/<id>/
-  const fileMatch = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
-  if (fileMatch) {
-    const direct = `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`;
-    return PROXY + encodeURIComponent(direct);
-  }
-  // Format 2: ?id=<id>
-  const idMatch = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/);
-  if (idMatch) {
-    const direct = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
-    return PROXY + encodeURIComponent(direct);
-  }
-  // Not a Drive link — return as-is
-  return url;
-}
-
-// ── Load audio from a URL string ───────────────────────────────────────────
-function loadFromURL(rawURL) {
-  const trimmed = rawURL.trim();
-  if (!trimmed) { setStatus('ENTER A URL FIRST', 'err'); return; }
-
-  const resolvedURL = convertGDriveURL(trimmed);
-
-  setStatus('LOADING…');
-  initAudioElement(resolvedURL, trimmed);
-}
-
-// ── Core audio element setup ───────────────────────────────────────────────
-function initAudioElement(src, label) {
-  teardown();
-
-  audioElement = new Audio();
-  audioElement.crossOrigin = 'anonymous';   // required for Web Audio API + CORS
-  audioElement.src = src;
-  currentSourceLabel = label.length > 48 ? label.slice(0, 45) + '…' : label;
-
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  source = audioContext.createMediaElementSource(audioElement);
-  setupVisualizer();
-
-  audioElement.addEventListener('loadedmetadata', () => {
-    timeline.max = audioElement.duration;
-    timeline.value = 0;
-    setStatus(`LOADED: ${currentSourceLabel}`, 'ok');
-  });
-
-  audioElement.addEventListener('timeupdate', updateTimeline);
-
-  audioElement.addEventListener('error', () => {
-    const code = audioElement.error ? audioElement.error.code : '?';
-    const hints = {
-      1: 'Aborted',
-      2: 'Network error — check the URL or CORS policy',
-      3: 'Decode error — file may not be a supported audio format',
-      4: 'Source not found or access denied',
-    };
-    setStatus(`ERROR ${code}: ${hints[code] || 'Unknown error'}`, 'err');
-    teardown();
-  });
-
-  audioElement.addEventListener('ended', () => {
-    isPlaying = false;
-    playButton.textContent = '▶ \u00A0PLAY';
-    cancelAnimationFrame(animationFrameId);
-  });
-}
-
 // ── Teardown previous session ──────────────────────────────────────────────
 function teardown() {
-  if (audioElement) {
-    audioElement.pause();
-    audioElement.src = '';
-  }
-  if (audioContext) {
-    audioContext.close();
-  }
+  if (audioElement) { audioElement.pause(); audioElement.src = ''; }
+  if (audioContext)  { audioContext.close(); }
   cancelAnimationFrame(animationFrameId);
   isPlaying = false;
   playButton.textContent = '▶ \u00A0PLAY';
@@ -378,7 +215,7 @@ function teardown() {
 // ── Visualizer setup ───────────────────────────────────────────────────────
 function setupVisualizer() {
   const size = canvas.getBoundingClientRect();
-  canvas.width = size.width || 300;
+  canvas.width  = size.width  || 300;
   canvas.height = size.height || 300;
   analyser = audioContext.createAnalyser();
   analyser.fftSize = 256;
@@ -398,6 +235,7 @@ function drawVisualizer() {
 
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
+  const scale = canvas.width / 300;
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -405,7 +243,7 @@ function drawVisualizer() {
 
   // Base disc
   ctx.beginPath();
-  ctx.arc(0, 0, 100, 0, 2 * Math.PI);
+  ctx.arc(0, 0, 100 * scale, 0, 2 * Math.PI);
   ctx.fillStyle = '#1a1a1a';
   ctx.shadowColor = '#03dac6';
   ctx.shadowBlur = 18;
@@ -415,7 +253,7 @@ function drawVisualizer() {
   // Grooves
   for (let r = 68; r < 100; r += 6) {
     ctx.beginPath();
-    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.arc(0, 0, r * scale, 0, 2 * Math.PI);
     ctx.strokeStyle = 'rgba(98,0,234,0.14)';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -423,25 +261,25 @@ function drawVisualizer() {
 
   // Center label
   ctx.beginPath();
-  ctx.arc(0, 0, 28, 0, 2 * Math.PI);
+  ctx.arc(0, 0, 28 * scale, 0, 2 * Math.PI);
   ctx.fillStyle = '#03dac6';
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(0, 0, 9, 0, 2 * Math.PI);
+  ctx.arc(0, 0, 9 * scale, 0, 2 * Math.PI);
   ctx.fillStyle = '#0e0e0e';
   ctx.fill();
 
   // Waveform (kept upright)
   ctx.save();
   ctx.rotate(-rotationAngle);
-  const radius = 100;
-  const maxBar = 52;
+  const radius = 100 * scale;
+  const maxBar = 52 * scale;
   const numBars = Math.floor(bufferLength / 2.5);
 
   ctx.beginPath();
   for (let i = 0; i < numBars; i++) {
     const angle = (i / numBars) * 2 * Math.PI;
-    let h = dataArray[i] / 2.2;
+    let h = (dataArray[i] / 2.2) * scale;
     if (h > maxBar) h = maxBar;
     ctx.lineTo(Math.cos(angle) * (radius + h), Math.sin(angle) * (radius + h));
   }
@@ -465,25 +303,45 @@ function updateTimeline() {
   }
 }
 
-// ── Event listeners ────────────────────────────────────────────────────────
-
-// URL load button
-loadUrlBtn.addEventListener('click', () => loadFromURL(urlInput.value));
-urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromURL(urlInput.value); });
-
-// File upload
+// ── File upload ────────────────────────────────────────────────────────────
 audioUpload.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  urlInput.value = '';
-  initAudioElement(URL.createObjectURL(file), file.name);
-  setStatus(`LOADED: ${file.name}`, 'ok');
+
+  teardown();
+
+  const label = file.name.length > 48 ? file.name.slice(0, 45) + '…' : file.name;
+  setStatus('LOADING…');
+
+  audioElement = new Audio(URL.createObjectURL(file));
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  source = audioContext.createMediaElementSource(audioElement);
+  setupVisualizer();
+
+  audioElement.addEventListener('loadedmetadata', () => {
+    timeline.max = audioElement.duration;
+    timeline.value = 0;
+    setStatus(`LOADED: ${label}`, 'ok');
+  });
+
+  audioElement.addEventListener('timeupdate', updateTimeline);
+
+  audioElement.addEventListener('error', () => {
+    setStatus('ERROR: Could not decode audio file', 'err');
+    teardown();
+  });
+
+  audioElement.addEventListener('ended', () => {
+    isPlaying = false;
+    playButton.textContent = '▶ \u00A0PLAY';
+    cancelAnimationFrame(animationFrameId);
+  });
 });
 
-// Play / Pause
+// ── Play / Pause ───────────────────────────────────────────────────────────
 playButton.addEventListener('click', () => {
   if (!audioElement) {
-    setStatus('LOAD A SOURCE FIRST', 'err');
+    setStatus('UPLOAD A FILE FIRST', 'err');
     return;
   }
   if (isPlaying) {
@@ -492,7 +350,6 @@ playButton.addEventListener('click', () => {
     playButton.textContent = '▶ \u00A0PLAY';
     cancelAnimationFrame(animationFrameId);
   } else {
-    // Resume AudioContext if suspended (browser autoplay policy)
     if (audioContext.state === 'suspended') audioContext.resume();
     audioElement.play();
     isPlaying = true;
@@ -501,7 +358,7 @@ playButton.addEventListener('click', () => {
   }
 });
 
-// Seek
+// ── Seek ───────────────────────────────────────────────────────────────────
 timeline.addEventListener('input', (e) => {
   if (audioElement && audioElement.duration) {
     audioElement.currentTime = parseFloat(e.target.value);

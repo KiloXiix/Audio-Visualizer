@@ -38,7 +38,6 @@ body {
   padding: 16px;
 }
 
-/* Subtle grid background */
 body::before {
   content: '';
   position: fixed;
@@ -61,7 +60,6 @@ body::before {
   box-shadow: 0 0 60px rgba(98,0,234,0.15), 0 0 0 1px rgba(3,218,198,0.06);
 }
 
-/* Corner accents */
 .container::before, .container::after {
   content: '';
   position: absolute;
@@ -82,7 +80,6 @@ h1 {
   opacity: 0.7;
 }
 
-/* ── File upload ── */
 .file-label {
   display: block;
   background: var(--surface2);
@@ -101,7 +98,6 @@ h1 {
 .file-label:hover { border-color: var(--teal); color: var(--teal); }
 #audio-upload { display: none; }
 
-/* ── Status bar ── */
 #status {
   font-family: 'Share Tech Mono', monospace;
   font-size: 10px;
@@ -115,7 +111,6 @@ h1 {
 #status.ok  { color: var(--teal); }
 #status.err { color: #cf6679; }
 
-/* ── Canvas ── */
 canvas {
   display: block;
   margin: 16px auto 14px;
@@ -127,7 +122,6 @@ canvas {
   box-shadow: 0 0 40px rgba(98,0,234,0.2);
 }
 
-/* ── Timeline ── */
 .timeline {
   width: 100%;
   margin: 4px 0 20px;
@@ -138,7 +132,6 @@ canvas {
   cursor: pointer;
 }
 
-/* ── Play button ── */
 #play-button {
   display: block;
   width: 100%;
@@ -168,7 +161,7 @@ canvas {
   <label class="file-label" for="audio-upload">
     ⊕ &nbsp;Upload audio file
   </label>
-  <input type="file" id="audio-upload" accept="audio/*">
+  <input type="file" id="audio-upload" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus">
 
   <div id="status">READY — NO FILE LOADED</div>
 
@@ -186,44 +179,145 @@ const timeline    = document.getElementById('audio-timeline');
 const statusEl    = document.getElementById('status');
 const ctx         = canvas.getContext('2d');
 
-let audioContext, source, analyser, bufferLength, dataArray;
+let audioContext, analyser, bufferLength, dataArray;
 let isPlaying = false;
-let audioElement;
+let audioElement = null;
+let pendingObjectURL = null;
+let pendingLabel = '';
+let visualizerReady = false;
 let animationFrameId;
 
-// ── Status helper ──────────────────────────────────────────────────────────
 function setStatus(msg, type = '') {
   statusEl.textContent = msg;
   statusEl.className = type;
 }
 
-// ── Teardown previous session ──────────────────────────────────────────────
+// ── Full teardown ──────────────────────────────────────────────────────────
 function teardown() {
-  if (audioElement) { audioElement.pause(); audioElement.src = ''; }
-  if (audioContext)  { audioContext.close(); }
   cancelAnimationFrame(animationFrameId);
+
+  if (audioElement) {
+    audioElement.pause();
+    audioElement.src = '';
+    audioElement = null;
+  }
+  if (audioContext) {
+    audioContext.close().catch(() => {});
+    audioContext = null;
+  }
+  if (pendingObjectURL) {
+    URL.revokeObjectURL(pendingObjectURL);
+    pendingObjectURL = null;
+  }
+
+  analyser = null;
+  visualizerReady = false;
   isPlaying = false;
   playButton.textContent = '▶ \u00A0PLAY';
   timeline.value = 0;
   timeline.max = 1;
-  audioElement = null;
-  audioContext = null;
-  source = null;
-  analyser = null;
 }
 
-// ── Visualizer setup ───────────────────────────────────────────────────────
-function setupVisualizer() {
-  const size = canvas.getBoundingClientRect();
-  canvas.width  = size.width  || 300;
-  canvas.height = size.height || 300;
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 256;
-  bufferLength = analyser.frequencyBinCount;
-  dataArray = new Uint8Array(bufferLength);
-  source.connect(analyser);
-  analyser.connect(audioContext.destination);
-}
+// ── File selected — just store it, don't touch AudioContext yet ────────────
+// Safari requires AudioContext to be created inside a direct user gesture
+// (i.e. a tap/click). File input change events don't always qualify on iOS,
+// so we defer AudioContext creation until the play button is pressed.
+audioUpload.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  teardown();
+
+  pendingObjectURL = URL.createObjectURL(file);
+  pendingLabel = file.name.length > 48 ? file.name.slice(0, 45) + '…' : file.name;
+
+  // Create the audio element now — just no AudioContext yet
+  audioElement = new Audio();
+  audioElement.src = pendingObjectURL;
+  audioElement.preload = 'metadata';
+
+  audioElement.addEventListener('loadedmetadata', () => {
+    timeline.max = audioElement.duration;
+    timeline.value = 0;
+    setStatus(`READY: ${pendingLabel}`, 'ok');
+  });
+
+  audioElement.addEventListener('timeupdate', () => {
+    if (audioElement && audioElement.duration) {
+      timeline.max = audioElement.duration;
+      timeline.value = audioElement.currentTime;
+    }
+  });
+
+  audioElement.addEventListener('error', () => {
+    setStatus('ERROR: Could not decode audio file', 'err');
+    teardown();
+  });
+
+  audioElement.addEventListener('ended', () => {
+    isPlaying = false;
+    playButton.textContent = '▶ \u00A0PLAY';
+    cancelAnimationFrame(animationFrameId);
+  });
+
+  setStatus(`READY: ${pendingLabel}`, 'ok');
+});
+
+// ── Play button — AudioContext created here, inside a real user gesture ────
+playButton.addEventListener('click', () => {
+  if (!audioElement) {
+    setStatus('UPLOAD A FILE FIRST', 'err');
+    return;
+  }
+
+  // First play: build AudioContext + analyser now, inside this click handler
+  if (!visualizerReady) {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaElementSource(audioElement);
+
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
+
+      // Match canvas internal resolution to its CSS size
+      const size = canvas.getBoundingClientRect();
+      canvas.width  = size.width  || 300;
+      canvas.height = size.height || 300;
+
+      visualizerReady = true;
+    } catch (err) {
+      setStatus('ERROR: Web Audio setup failed', 'err');
+      return;
+    }
+  }
+
+  if (isPlaying) {
+    audioElement.pause();
+    isPlaying = false;
+    playButton.textContent = '▶ \u00A0PLAY';
+    cancelAnimationFrame(animationFrameId);
+  } else {
+    if (audioContext.state === 'suspended') audioContext.resume();
+    audioElement.play().catch((err) => {
+      setStatus(`ERROR: Playback failed — ${err.message}`, 'err');
+    });
+    isPlaying = true;
+    playButton.textContent = '⏸ \u00A0PAUSE';
+    drawVisualizer();
+  }
+});
+
+// ── Seek ───────────────────────────────────────────────────────────────────
+timeline.addEventListener('input', (e) => {
+  if (audioElement && audioElement.duration) {
+    audioElement.currentTime = parseFloat(e.target.value);
+  }
+});
 
 // ── Draw ───────────────────────────────────────────────────────────────────
 let rotationAngle = 0;
@@ -233,8 +327,8 @@ function drawVisualizer() {
   analyser.getByteFrequencyData(dataArray);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx    = canvas.width / 2;
+  const cy    = canvas.height / 2;
   const scale = canvas.width / 300;
 
   ctx.save();
@@ -259,7 +353,7 @@ function drawVisualizer() {
     ctx.stroke();
   }
 
-  // Center label
+  // Center dot
   ctx.beginPath();
   ctx.arc(0, 0, 28 * scale, 0, 2 * Math.PI);
   ctx.fillStyle = '#03dac6';
@@ -269,7 +363,7 @@ function drawVisualizer() {
   ctx.fillStyle = '#0e0e0e';
   ctx.fill();
 
-  // Waveform (kept upright)
+  // Waveform ring (kept upright while disc spins)
   ctx.save();
   ctx.rotate(-rotationAngle);
   const radius = 100 * scale;
@@ -294,76 +388,6 @@ function drawVisualizer() {
   ctx.restore();
   rotationAngle += 0.012;
 }
-
-// ── Timeline ───────────────────────────────────────────────────────────────
-function updateTimeline() {
-  if (audioElement && audioElement.duration) {
-    timeline.max = audioElement.duration;
-    timeline.value = audioElement.currentTime;
-  }
-}
-
-// ── File upload ────────────────────────────────────────────────────────────
-audioUpload.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  teardown();
-
-  const label = file.name.length > 48 ? file.name.slice(0, 45) + '…' : file.name;
-  setStatus('LOADING…');
-
-  audioElement = new Audio(URL.createObjectURL(file));
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  source = audioContext.createMediaElementSource(audioElement);
-  setupVisualizer();
-
-  audioElement.addEventListener('loadedmetadata', () => {
-    timeline.max = audioElement.duration;
-    timeline.value = 0;
-    setStatus(`LOADED: ${label}`, 'ok');
-  });
-
-  audioElement.addEventListener('timeupdate', updateTimeline);
-
-  audioElement.addEventListener('error', () => {
-    setStatus('ERROR: Could not decode audio file', 'err');
-    teardown();
-  });
-
-  audioElement.addEventListener('ended', () => {
-    isPlaying = false;
-    playButton.textContent = '▶ \u00A0PLAY';
-    cancelAnimationFrame(animationFrameId);
-  });
-});
-
-// ── Play / Pause ───────────────────────────────────────────────────────────
-playButton.addEventListener('click', () => {
-  if (!audioElement) {
-    setStatus('UPLOAD A FILE FIRST', 'err');
-    return;
-  }
-  if (isPlaying) {
-    audioElement.pause();
-    isPlaying = false;
-    playButton.textContent = '▶ \u00A0PLAY';
-    cancelAnimationFrame(animationFrameId);
-  } else {
-    if (audioContext.state === 'suspended') audioContext.resume();
-    audioElement.play();
-    isPlaying = true;
-    playButton.textContent = '⏸ \u00A0PAUSE';
-    drawVisualizer();
-  }
-});
-
-// ── Seek ───────────────────────────────────────────────────────────────────
-timeline.addEventListener('input', (e) => {
-  if (audioElement && audioElement.duration) {
-    audioElement.currentTime = parseFloat(e.target.value);
-  }
-});
 </script>
 
 </body>
